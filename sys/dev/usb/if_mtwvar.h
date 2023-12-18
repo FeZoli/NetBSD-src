@@ -222,8 +222,7 @@ struct mtw_softc {
 	uint8_t				qfullmsk;
 	int				sc_tx_timer;
 
-#if NBPFILTER > 0
-	caddr_t				sc_drvbpf;
+	struct bpf_if * sc_drvbpf;
 
 	union {
 		struct mtw_rx_radiotap_header th;
@@ -238,6 +237,5 @@ struct mtw_softc {
 	}				sc_txtapu;
 #define sc_txtap	sc_txtapu.th
 	int				sc_txtap_len;
-#endif
 	int				sc_key_tasks;
 };

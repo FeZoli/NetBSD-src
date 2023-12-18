@@ -490,6 +490,11 @@ device	usmsc: arp, ether, ifnet, mii, mii_phy, usbnet
 attach	usmsc at usbdevif
 file	dev/usb/if_smsc.c		usmsc
 
+# Mediatek MT7601 USB wireless adapter
+device	mtw: arp, ether, ifnet, wlan, firmload
+attach	mtw at usbdevif
+file	dev/usb/if_mtw.c		mtw
+
 # Ralink Technology RT2500USB
 device	ural: arp, ether, ifnet, wlan, firmload
 attach	ural at usbdevif

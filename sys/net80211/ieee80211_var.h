@@ -113,7 +113,14 @@ struct ieee80211com {
 				    enum ieee80211_state, int);
 	void			(*ic_newassoc)(struct ieee80211_node *, int);
 	void			(*ic_updateslot)(struct ifnet *);
+   void			(*ic_updateedca)(struct ieee80211com *);
 	void			(*ic_set_tim)(struct ieee80211_node *, int);
+   int			(*ic_set_key)(struct ieee80211com *,
+				    struct ieee80211_node *,
+				    struct ieee80211_key *);
+  	void			(*ic_delete_key)(struct ieee80211com *,
+				    struct ieee80211_node *,
+				    struct ieee80211_key *);             
 	u_int8_t		ic_myaddr[IEEE80211_ADDR_LEN];
 	struct ieee80211_rateset ic_sup_rates[IEEE80211_MODE_MAX];
 	struct ieee80211_channel ic_channels[IEEE80211_CHAN_MAX+1];
@@ -281,6 +288,7 @@ extern struct ieee80211com_head ieee80211com_head;
 /* 0x780000 available */
 #define	IEEE80211_C_WPA1	0x00800000	/* CAPABILITY: WPA1 avail */
 #define	IEEE80211_C_WPA2	0x01000000	/* CAPABILITY: WPA2 avail */
+#define  IEEE80211_C_RSN	0x00001000	/* CAPABILITY: RSN avail */
 #define	IEEE80211_C_WPA		0x01800000	/* CAPABILITY: WPA1+WPA2 avail*/
 #define	IEEE80211_C_BURST	0x02000000	/* CAPABILITY: frame bursting */
 #define	IEEE80211_C_WME		0x04000000	/* CAPABILITY: WME avail */

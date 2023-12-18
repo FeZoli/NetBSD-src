@@ -899,7 +899,8 @@ struct mtw_mcu_cmd_16 {
 #define MT7610_RF_7610	0x7610	/* 1T1R */
 #define MT7612_RF_7612	0x7612	/* 2T2R */
 
-#define MTW_CONFIG_NO	1
+#define MTW_CONFIG_NO   1
+#define MTW_IFACE_INDEX 0
 
 /* USB vendor request */
 #define MTW_RESET			0x1
