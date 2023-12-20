@@ -1,4 +1,4 @@
-/*	$NetBSD: var.c,v 1.1083 2023/12/17 08:53:55 rillig Exp $	*/
+/*	$NetBSD: var.c,v 1.1086 2023/12/20 09:03:08 rillig Exp $	*/
 
 /*
  * Copyright (c) 1988, 1989, 1990, 1993
@@ -139,7 +139,7 @@
 #include "metachar.h"
 
 /*	"@(#)var.c	8.3 (Berkeley) 3/19/94" */
-MAKE_RCSID("$NetBSD: var.c,v 1.1083 2023/12/17 08:53:55 rillig Exp $");
+MAKE_RCSID("$NetBSD: var.c,v 1.1086 2023/12/20 09:03:08 rillig Exp $");
 
 /*
  * Variables are defined using one of the VAR=value assignments.  Their
@@ -222,9 +222,6 @@ typedef struct Var {
 /*
  * Exporting variables is expensive and may leak memory, so skip it if we
  * can.
- *
- * To avoid this, it might be worth encapsulating the environment variables
- * in a separate data structure called EnvVars.
  */
 typedef enum VarExportedMode {
 	VAR_EXPORTED_NONE,
@@ -506,15 +503,14 @@ Var_Delete(GNode *scope, const char *varname)
 	Var *v;
 
 	if (he == NULL) {
-		DEBUG2(VAR, "%s: delete %s (not found)\n",
+		DEBUG2(VAR, "%s: ignoring delete '%s' as it is not found\n",
 		    scope->name, varname);
 		return;
 	}
 
-	DEBUG2(VAR, "%s: delete %s\n", scope->name, varname);
 	v = he->value;
 	if (v->readOnly) {
-		DEBUG2(VAR, "%s: delete %s (readOnly)\n",
+		DEBUG2(VAR, "%s: ignoring delete '%s' as it is read-only\n",
 		    scope->name, varname);
 		return;
 	}
@@ -525,6 +521,7 @@ Var_Delete(GNode *scope, const char *varname)
 		return;
 	}
 
+	DEBUG2(VAR, "%s: delete %s\n", scope->name, varname);
 	if (v->exported)
 		unsetenv(v->name.str);
 	if (strcmp(v->name.str, ".MAKE.EXPORTED") == 0)
@@ -932,15 +929,17 @@ Var_SetWithFlags(GNode *scope, const char *name, const char *val,
 
 	assert(val != NULL);
 	if (name[0] == '\0') {
-		DEBUG0(VAR, "SetVar: variable name is empty - ignored\n");
+		DEBUG3(VAR,
+		    "%s: ignoring '%s = %s' as the variable name is empty\n",
+		    scope->name, name, val);
 		return;
 	}
 
 	if (scope == SCOPE_GLOBAL && ExistsInCmdline(name)) {
 		DEBUG3(VAR,
-		    "%s: ignoring '%s' = '%s' "
+		    "%s: ignoring '%s = %s' "
 		    "due to a command line variable of the same name\n",
-		    SCOPE_GLOBAL->name, name, val);
+		    scope->name, name, val);
 		return;
 	}
 
@@ -963,14 +962,16 @@ Var_SetWithFlags(GNode *scope, const char *name, const char *val,
 		}
 		if (strcmp(name, ".SUFFIXES") == 0) {
 			/* special: treat as read-only */
-			DEBUG3(VAR, "%s: %s = %s ignored (read-only)\n",
+			DEBUG3(VAR,
+			    "%s: ignoring '%s = %s' as it is read-only\n",
 			    scope->name, name, val);
 			return;
 		}
 		v = VarAdd(name, val, scope, flags);
 	} else {
 		if (v->readOnly && !(flags & VAR_SET_READONLY)) {
-			DEBUG3(VAR, "%s: %s = %s ignored (read-only)\n",
+			DEBUG3(VAR,
+			    "%s: ignoring '%s = %s' as it is read-only\n",
 			    scope->name, name, val);
 			return;
 		}
@@ -1039,10 +1040,10 @@ Var_SetExpand(GNode *scope, const char *name, const char *val)
 	Var_Expand(&varname, scope, VARE_WANTRES);
 
 	if (varname.str[0] == '\0') {
-		DEBUG2(VAR,
-		    "Var_SetExpand: variable name \"%s\" expands "
-		    "to empty string, with value \"%s\" - ignored\n",
-		    unexpanded_name, val);
+		DEBUG4(VAR,
+		    "%s: ignoring '%s = %s' "
+		    "as the variable name '%s' expands to empty\n",
+		    scope->name, varname.str, val, unexpanded_name);
 	} else
 		Var_SetWithFlags(scope, varname.str, val, VAR_SET_NONE);
 
@@ -1083,8 +1084,8 @@ Var_Append(GNode *scope, const char *name, const char *val)
 	if (v == NULL) {
 		Var_SetWithFlags(scope, name, val, VAR_SET_NONE);
 	} else if (v->readOnly) {
-		DEBUG1(VAR, "Ignoring append to %s since it is read-only\n",
-		    name);
+		DEBUG3(VAR, "%s: ignoring '%s += %s' as it is read-only\n",
+		    scope->name, name, val);
 	} else if (scope == SCOPE_CMDLINE || !v->fromCmd) {
 		Buf_AddByte(&v->val, ' ');
 		Buf_AddStr(&v->val, val);
@@ -1133,10 +1134,10 @@ Var_AppendExpand(GNode *scope, const char *name, const char *val)
 
 	Var_Expand(&xname, scope, VARE_WANTRES);
 	if (xname.str != name && xname.str[0] == '\0')
-		DEBUG2(VAR,
-		    "Var_AppendExpand: variable name \"%s\" expands "
-		    "to empty string, with value \"%s\" - ignored\n",
-		    name, val);
+		DEBUG4(VAR,
+		    "%s: ignoring '%s += %s' "
+		    "as the variable name '%s' expands to empty\n",
+		    scope->name, xname.str, val, name);
 	else
 		Var_Append(scope, xname.str, val);
 
@@ -3251,7 +3252,6 @@ ApplyModifier_Words(const char **pp, ModChain *ch)
 			size_t ac = words.len;
 			SubstringWords_Free(words);
 
-			/* 3 digits + '\0' is usually enough */
 			Buf_InitSize(&buf, 4);
 			Buf_AddInt(&buf, (int)ac);
 			Expr_SetValueOwn(expr, Buf_DoneData(&buf));
@@ -4583,7 +4583,7 @@ Var_Parse(const char **pp, GNode *scope, VarEvalMode emode)
 	 * variable.  This means that as long as the value of the expression
 	 * stays the same, the value of the variable must not change, and the
 	 * variable must not be deleted.  Using the ':@' modifier, it is
-	 * possible (since var.c 1.212 from 2017/02/01) to delete the variable
+	 * possible (since var.c 1.212 from 2017-02-01) to delete the variable
 	 * while its value is still being used:
 	 *
 	 *	VAR=	value
